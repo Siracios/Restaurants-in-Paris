@@ -1,0 +1,263 @@
+---
+title: "Individual Assignment:Sebastian Mendoza"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+  word_document: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+#Individual Assignment
+#MBD12 – Analytical Modelling
+#Sebastian Mendoza
+library(tidyverse)
+df_business <- df_business_vancouver
+
+```
+
+```{r}
+#PART1
+#STEP1
+x <- df_business$hours_Monday
+x <- x[!is.na(x)]
+x <- x[1:10]
+x
+h1 <- x %>% str_match("^(\\d+)")
+h1 <- h1[,2] %>% as.numeric()
+m1 <- x %>% str_match("^\\d+:(\\d+)")
+m1 <- m1[,2] %>% as.numeric()
+h2 <- x %>% str_match("^\\d+:\\d+-(\\d+)")
+h2 <- h2[,2] %>% as.numeric()
+m2 <- x %>% str_match("^\\d+:\\d+-\\d+:(\\d+)")
+m2 <- m2[,2] %>% as.numeric()
+duration <- (h2*60+m2)-(h1*60+m1)
+duration
+```
+```{r}
+#STEP2
+get_duration <- function(x) {
+h1 <- x %>% str_match("^(\\d+)")
+h1 <- h1[,2] %>% as.numeric()
+m1 <- x %>% str_match("^\\d+:(\\d+)")
+m1 <- m1[,2] %>% as.numeric()
+h2 <- x %>% str_match("^\\d+:\\d+-(\\d+)")
+h2 <- h2[,2] %>% as.numeric()
+m2 <- x %>% str_match("^\\d+:\\d+-\\d+:(\\d+)")
+m2 <- m2[,2] %>% as.numeric()
+out <- (h2*60+m2)-(h1*60+m1)
+return(out)
+}
+get_duration(x)
+```
+```{r}
+#STEP3
+df_duration <- df_business %>%
+mutate(
+duration_mon = get_duration(df_business$hours_Monday),
+duration_tue = get_duration(df_business$hours_Tuesday),
+duration_wed = get_duration(df_business$hours_Wednesday),
+duration_thu = get_duration(df_business$hours_Thursday),
+duration_fri = get_duration(df_business$hours_Friday),
+duration_sat = get_duration(df_business$hours_Saturday),
+duration_sun = get_duration(df_business$hours_Sunday))
+```
+
+
+```{r}
+#STEP4
+df_duration <- df_duration %>% 
+  select(business_id, duration_mon, duration_tue, duration_wed, 
+         duration_thu, duration_fri, duration_sat, duration_sun) %>% 
+  pivot_longer(cols=starts_with("duration"), 
+               names_to = "wday", 
+               names_prefix = "duration_", 
+               values_to = "duration", 
+               values_drop_na = FALSE) 
+df_duration %>% head() 
+```
+```{r}
+#STEP5
+df_duration %>% filter(duration < 0)
+```
+```{r}
+#STEP6
+#ANSWER: THER PROBLEM IS WHEN THE CLOSING TIME IS AFTER 23:59. AS THE TIME IS AM-PM, BY THE CHANGE OF DAY, THE CLOSURE TIME IS SMALLER THAN THE OPENING. HENCE IT HAS A NEGATIVE NUMBER.
+df1 <- df_duration %>% filter(duration < 0)
+df1 %>% 
+  left_join(df_business, by = "business_id") %>%
+  select(business_id,duration,hours_Monday:hours_Sunday)
+```
+```{r}
+#STEP7
+get_duration_2 <- function(x) {
+h1 <- x %>% str_match("^(\\d+)")
+h1 <- h1[,2] %>% as.numeric()
+m1 <- x %>% str_match("^\\d+:(\\d+)")
+m1 <- m1[,2] %>% as.numeric()
+h2 <- x %>% str_match("^\\d+:\\d+-(\\d+)")
+h2 <- h2[,2] %>% as.numeric()
+m2 <- x %>% str_match("^\\d+:\\d+-\\d+:(\\d+)")
+m2 <- m2[,2] %>% as.numeric()
+h2 <- if_else(
+h2 < h1,
+(h2+24),
+h2)
+out <- (h2*60+m2)-(h1*60+m1)
+return(out)
+}
+```
+```{r}
+#STEP8
+df_duration_2 <- df_business %>%
+mutate(
+duration_mon = get_duration_2(df_business$hours_Monday),
+duration_tue = get_duration_2(df_business$hours_Tuesday),
+duration_wed = get_duration_2(df_business$hours_Wednesday),
+duration_thu = get_duration_2(df_business$hours_Thursday),
+duration_fri = get_duration_2(df_business$hours_Friday),
+duration_sat = get_duration_2(df_business$hours_Saturday),
+duration_sun = get_duration_2(df_business$hours_Sunday))
+
+```
+
+```{r}
+#STEP9
+df_duration_2 <- df_duration_2 %>% 
+  select(business_id, duration_mon, duration_tue, duration_wed, 
+         duration_thu, duration_fri, duration_sat, duration_sun) %>% 
+  pivot_longer(cols=starts_with("duration"), 
+               names_to = "wday", 
+               names_prefix = "duration_", 
+               values_to = "duration", 
+               values_drop_na = FALSE) %>% 
+  mutate( wday = factor(wday,c('mon','tue','wed','thu','fri','sat','sun')), ) 
+df_duration_2$duration <- as.numeric(df_duration_2$duration) 
+df_duration_2 %>% head() 
+
+```
+```{r}
+#STEP10
+df_duration_2 %>% 
+  mutate( duration_hours = duration/60 ) %>% 
+  ggplot() + 
+  geom_hline(aes(yintercept=0.1)) + 
+  geom_density(aes(x=duration_hours), 
+               color = gray(0.4), 
+               fill = "darkgoldenrod") + 
+  facet_wrap(~ wday, ncol = 2) + 
+  theme_bw() + 
+  scale_x_continuous(breaks = seq(0, 24, by = 2)) + 
+  labs( 
+    title = "Duration of time that restaurants are open", 
+    subtitle = "A horizontal line at y=0.10 has been added to facilitate comparison", 
+    x = "Duration (hr)", 
+    y = "Density", 
+    caption = str_c( 
+      "More proportion of restaurants are closed on Mon than other days of the week", "\n", 
+      "Similar pattern on Tue, Wed, Thu, and Fri, with majority open for 8-10 hr", "\n", 
+      "Sat is similar to Mon but with less restaurants closed and more restaurants opened for < 8 hr", "\n", 
+      "A wide plateau on Sun, from 5 hr to 12 hr", 
+      sep = "" 
+      )) + 
+  theme(plot.caption = element_text(hjust = 0))
+```
+```{r}
+#PART2
+#STEP1
+get_h <- function(x) {
+# Input:
+# x (chr vec) open hours formated as h1:m1-h2:m2
+# Output:
+# (dbl vec) duration in minutes
+h1 <- x %>% str_match("^(\\d+)")
+h1 <- h1[,2] %>% as.numeric()
+h2 <- x %>% str_match("^\\d+:\\d+-(\\d+)")
+h2 <- h2[,2] %>% as.numeric()
+h2 <- if_else(
+h2 < h1,
+(h2+24),
+h2)
+out <- h2
+return(out)
+}
+```
+
+```{r}
+#STEP2
+df_closing <- df_business %>% 
+mutate( 
+closing_mon = get_h(hours_Monday), 
+closing_tue = get_h(hours_Tuesday), 
+closing_wed = get_h(hours_Wednesday), 
+closing_thu = get_h(hours_Thursday), 
+closing_fri = get_h(hours_Friday), 
+closing_sat = get_h(hours_Saturday), 
+closing_sun = get_h(hours_Sunday) 
+) %>% 
+select(business_id, closing_mon, closing_tue, closing_wed, 
+closing_thu, closing_fri, closing_sat, closing_sun) %>% 
+pivot_longer(cols=starts_with("closing_"), 
+names_to = "wday", 
+names_prefix = "closing_", 
+values_to = "closing", 
+values_drop_na = FALSE) %>% 
+mutate( 
+wday = factor(wday,c('mon','tue','wed','thu','fri','sat','sun')), )
+df_closing %>% head() 
+```
+
+```{r}
+#STEP3
+df_alco <- df_business %>% 
+select(business_id, attributes_Alcohol) %>% 
+mutate( 
+attributes_Alcohol = case_when(str_detect(attributes_Alcohol,'.[Nn]one.')==T ~ 'none', str_detect(attributes_Alcohol,'None') ~ 'none', 
+str_detect(attributes_Alcohol,'.beer_and_wine.')==T ~ 'beer_and_wine',
+str_detect(attributes_Alcohol,'.full_bar.')==T ~ 'full_bar' 
+))
+df_alco %>% drop_na() %>% head() 
+
+  
+```
+```{r}
+#STEP4
+df_closing <- df_closing %>% 
+  left_join(df_alco, 
+            by = 'business_id') 
+df_closing$closing <- as.numeric(df_closing$closing) 
+df_closing %>% head() 
+
+```
+```{r}
+#STEP5
+df_closing %>% 
+  filter(attributes_Alcohol == 'full_bar' | attributes_Alcohol == 'none') %>% 
+  filter(closing != 0) %>% 
+  ggplot() + 
+geom_density(aes(x=closing), 
+             color = gray(0.4), 
+             fill = "darkgoldenrod") + 
+  facet_grid(rows = vars(wday), cols = vars(attributes_Alcohol)) + 
+  theme_bw() + 
+  scale_x_continuous( 
+    breaks = seq(0, 48, by = 2), 
+    labels = c( 
+      seq(0, 24, by = 2), 
+      str_c(seq(2, 24, by = 2), "\n(+1)") 
+      ) 
+    ) + 
+  coord_cartesian(xlim = c(12, 24 + 6)) + 
+  labs( 
+    title = "Closing hours of restaurants", 
+    subtitle = "Restaurants with a full bar vs. those that don't serve alcohol", 
+    x = "Closing hour (+1 indicates next day)", 
+    y = "Density" 
+) 
+
+```
